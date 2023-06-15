@@ -1,49 +1,30 @@
 import java.util.*;
+import java.util.concurrent.*;
 
 public class Main {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws InterruptedException, ExecutionException {
         String[] texts = new String[25];
         for (int i = 0; i < texts.length; i++) {
             texts[i] = generateText("aab", 30_000);
         }
 
         long startTs = System.currentTimeMillis(); // start time
-        List<Thread> threads = new ArrayList<>();
+        final ExecutorService threadPool = Executors.newFixedThreadPool(4);
+        ArrayList<Future<Integer>> tasks = new ArrayList<>();
         for (String text : texts) {
-            Runnable task = () -> {
-                int maxSize = 0;
-                for (int i = 0; i < text.length(); i++) {
-                    for (int j = 0; j < text.length(); j++) {
-                        if (i >= j) {
-                            continue;
-                        }
-                        boolean bFound = false;
-                        for (int k = i; k < j; k++) {
-                            if (text.charAt(k) == 'b') {
-                                bFound = true;
-                                break;
-                            }
-                        }
-                        if (!bFound && maxSize < j - i) {
-                            maxSize = j - i;
-                        }
-                    }
-                }
-                System.out.println(text.substring(0, 100) + " -> " + maxSize);
-            };
-            threads.add(new Thread(task));
+            Callable<Integer> taskCallable = new RepetitionsCalculator(text);
+            Future<Integer> task = threadPool.submit(taskCallable);
+            tasks.add(task);
         }
-        threads.forEach(x -> x.start());
-        threads.forEach(x -> {
-            try {
-                x.join();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        ArrayList<Integer> results = new ArrayList<>();
+        for (Future<Integer> integerFuture : tasks) {
+            Integer result = integerFuture.get();
+            results.add(result);
+        }
+        threadPool.shutdown();
+        System.out.println("Максимальное значение " + Collections.max(results));
         long endTs = System.currentTimeMillis(); // end time
-
         System.out.println("Time: " + (endTs - startTs) + "ms");
     }
 
